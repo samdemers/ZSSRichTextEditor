@@ -53,7 +53,7 @@
 - (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section
 {
     // Return the number of rows in the section.
-    return 5;
+    return 7;
 }
 
 
@@ -87,6 +87,9 @@
     } else if (indexPath.row == 5) {
         cell.textLabel.text = @"Placeholder";
         cell.detailTextLabel.text = @"Using placeholder text in the editor";
+    } else if (indexPath.row == 6) {
+        cell.textLabel.text = @"Modal View";
+        cell.detailTextLabel.text = @"Default implementation, presented in a modal view controller";
     }
     cell.detailTextLabel.textColor = [UIColor grayColor];
     
@@ -114,6 +117,16 @@
     } else if (indexPath.row == 5) {
         ZSSPlaceholderViewController *demo6 = [[ZSSPlaceholderViewController alloc] init];
         [self.navigationController pushViewController:demo6 animated:YES];
+    } else if (indexPath.row == 6) {
+        ZSSDemoViewController *demo7 = [[ZSSDemoViewController alloc] init];
+        demo7.doneBlock = ^{
+            [self dismissViewControllerAnimated:YES completion:nil];
+        };
+        
+        UINavigationController *demo7NavController = [[UINavigationController alloc] initWithRootViewController:demo7];
+        demo7NavController.modalPresentationStyle = UIModalPresentationFormSheet;
+        demo7NavController.navigationBar.translucent = NO;
+        [self presentViewController:demo7NavController animated:YES completion:nil];
     }
     
 }

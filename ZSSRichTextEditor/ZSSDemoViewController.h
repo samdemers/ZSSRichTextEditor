@@ -11,4 +11,6 @@
 
 @interface ZSSDemoViewController : ZSSRichTextEditor
 
+@property (strong, nonatomic) void (^doneBlock)();
+
 @end

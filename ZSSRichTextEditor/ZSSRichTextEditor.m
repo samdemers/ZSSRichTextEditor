@@ -83,7 +83,6 @@ static Class hackishFixClass = Nil;
 @property (nonatomic, strong) NSString *htmlString;
 @property (nonatomic, strong) UIWebView *editorView;
 @property (nonatomic, strong) ZSSTextView *sourceView;
-@property (nonatomic) CGRect editorViewFrame;
 @property (nonatomic) BOOL resourcesLoaded;
 @property (nonatomic, strong) NSArray *editorItemsEnabled;
 @property (nonatomic, strong) UIAlertView *alertView;
@@ -111,6 +110,10 @@ static Class hackishFixClass = Nil;
     self.shouldShowKeyboard = YES;
     self.formatHTML = YES;
     
+    self.view.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+    self.view.autoresizesSubviews = YES;
+    self.view.backgroundColor = [UIColor whiteColor];
+    
     // Source View
     CGRect frame = CGRectMake(0, 0, self.view.frame.size.width, self.view.frame.size.height);
     self.sourceView = [[ZSSTextView alloc] initWithFrame:frame];
@@ -136,7 +139,7 @@ static Class hackishFixClass = Nil;
     [self.view addSubview:self.editorView];
     
     // Scrolling View
-    self.toolBarScroll = [[UIScrollView alloc] initWithFrame:CGRectMake(0, 0, [self isIpad] ? self.view.frame.size.width : self.view.frame.size.width - 44, 44)];
+    self.toolBarScroll = [[UIScrollView alloc] init];
     self.toolBarScroll.backgroundColor = [UIColor clearColor];
     self.toolBarScroll.showsHorizontalScrollIndicator = NO;
     
@@ -152,10 +155,20 @@ static Class hackishFixClass = Nil;
     backgroundToolbar.autoresizingMask = UIViewAutoresizingFlexibleWidth;
     
     // Parent holding view
-    self.toolbarHolder = [[UIView alloc] initWithFrame:CGRectMake(0, self.view.frame.size.height, self.view.frame.size.width, 44)];
+    self.toolbarHolder = [[UIView alloc] init];
     self.toolbarHolder.autoresizingMask = self.toolbar.autoresizingMask;
     [self.toolbarHolder addSubview:self.toolBarScroll];
     [self.toolbarHolder insertSubview:backgroundToolbar atIndex:0];
+    
+    UIWindow *window = [UIApplication sharedApplication].keyWindow;
+    UIView *rootView = window.subviews[0];
+    
+    CGPoint toolbarCenter = CGPointMake(rootView.bounds.size.width / 2.0f, rootView.bounds.size.height + 22);
+    
+    self.toolbarHolder.transform = rootView.transform;
+    self.toolbarHolder.bounds = CGRectMake(0, 0, rootView.bounds.size.width, 44);
+    self.toolbarHolder.center = [window convertPoint:toolbarCenter fromView:rootView];
+    self.toolBarScroll.frame = CGRectMake(0, 0, [self isIpad] ? self.toolbarHolder.bounds.size.width : self.toolbarHolder.bounds.size.width - 44, 44);
     
     // Hide Keyboard
     if (![self isIpad]) {
@@ -178,7 +191,6 @@ static Class hackishFixClass = Nil;
         line.alpha = 0.7f;
         [toolbarCropper addSubview:line];
     }
-    [self.view addSubview:self.toolbarHolder];
     
     // Build the toolbar
     [self buildToolbar];
@@ -524,15 +536,24 @@ static Class hackishFixClass = Nil;
 - (void)viewWillAppear:(BOOL)animated {
     [super viewWillAppear:animated];
     
+    // Show/hide the toolbar along with the keyboard and adjust the editor's height
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(keyboardWillShowOrHide:) name:UIKeyboardWillShowNotification object:nil];
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(keyboardWillShowOrHide:) name:UIKeyboardWillHideNotification object:nil];
+    
+    // Readjust the editor's height after the keyboard has finished appearing in case our view has moved (such as when presented in a modal view)
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(keyboardDidShow:) name:UIKeyboardDidShowNotification object:nil];
+    
+    [[UIApplication sharedApplication].keyWindow addSubview:self.toolbarHolder];
+    self.toolbarHolder.tintAdjustmentMode = UIViewTintAdjustmentModeNormal;
 }
 
-- (void)viewWillDisappear:(BOOL)animated {
-    [super viewWillDisappear:animated];
+- (void)viewDidDisappear:(BOOL)animated {
+    [super viewDidDisappear:animated];
     
     [[NSNotificationCenter defaultCenter] removeObserver:self name:UIKeyboardWillShowNotification object:nil];
     [[NSNotificationCenter defaultCenter] removeObserver:self name:UIKeyboardWillHideNotification object:nil];
+    
+    [self.toolbarHolder removeFromSuperview];
 }
 
 
@@ -1118,52 +1139,45 @@ static Class hackishFixClass = Nil;
 
 - (void)keyboardWillShowOrHide:(NSNotification *)notification {
     
-    // Orientation
-    UIInterfaceOrientation orientation = [UIApplication sharedApplication].statusBarOrientation;
-	
     // User Info
     NSDictionary *info = notification.userInfo;
     CGFloat duration = [[info objectForKey:UIKeyboardAnimationDurationUserInfoKey] floatValue];
     int curve = [[info objectForKey:UIKeyboardAnimationCurveUserInfoKey] intValue];
     CGRect keyboardEnd = [[info objectForKey:UIKeyboardFrameEndUserInfoKey] CGRectValue];
     
-    // Toolbar Sizes
-    CGFloat sizeOfToolbar = self.toolbarHolder.frame.size.height;
-    
-    // Keyboard Size
-    //Checks if IOS8, gets correct keyboard height
-   CGFloat keyboardHeight = UIInterfaceOrientationIsLandscape(orientation) ? ([[[UIDevice currentDevice] systemVersion] floatValue] >= 8.000000) ? keyboardEnd.size.height : keyboardEnd.size.width : keyboardEnd.size.height;
-    
     // Correct Curve
     UIViewAnimationOptions animationOptions = curve << 16;
     
+    // Get toolbar and keyboard dimensions
+    UIView *window = self.toolbarHolder.superview;
+    UIView *rootView = window.subviews[0];
+    CGRect keyboardFrame = [window convertRect:keyboardEnd toView:rootView];
+
 	if ([notification.name isEqualToString:UIKeyboardWillShowNotification]) {
         
         [UIView animateWithDuration:duration delay:0 options:animationOptions animations:^{
             
-            // Toolbar
-            CGRect frame = self.toolbarHolder.frame;
-            frame.origin.y = self.view.frame.size.height - (keyboardHeight + sizeOfToolbar);
-            self.toolbarHolder.frame = frame;
+            // Toolbar center
+            CGPoint toolbarCenter = CGPointMake(rootView.bounds.size.width/2.0f, keyboardFrame.origin.y - 22);
+            self.toolbarHolder.transform = rootView.transform;
+            self.toolbarHolder.bounds = CGRectMake(0, 0, rootView.bounds.size.width, 44);
+            self.toolbarHolder.center = [window convertPoint:toolbarCenter fromView:rootView];
             
             // Editor View
             const int extraHeight = 10;
-
+            CGPoint toolbarOrigin = [self.toolbarHolder convertPoint:self.toolbarHolder.bounds.origin toView:self.editorView];
             CGRect editorFrame = self.editorView.frame;
-            editorFrame.size.height = (self.view.frame.size.height - keyboardHeight) - sizeOfToolbar - extraHeight;
+            editorFrame.size.height = MIN(self.editorView.superview.bounds.size.height, toolbarOrigin.y) - extraHeight;
             self.editorView.frame = editorFrame;
-            self.editorViewFrame = self.editorView.frame;
             self.editorView.scrollView.contentInset = UIEdgeInsetsZero;
             self.editorView.scrollView.scrollIndicatorInsets = UIEdgeInsetsZero;
             
             // Source View
-            CGRect sourceFrame = self.sourceView.frame;
-            sourceFrame.size.height = (self.view.frame.size.height - keyboardHeight) - sizeOfToolbar - extraHeight;
-            self.sourceView.frame = sourceFrame;
+            self.sourceView.frame = self.editorView.frame;
             
-            // Provide editor with keyboard hegiht and aditor view height
-            [self setFooterHeight:(keyboardHeight - 8)];
-            [self setContentHeight: self.editorViewFrame.size.height];
+            // Provide editor with keyboard height and editor view height
+            [self setFooterHeight:(keyboardFrame.size.height - 8)];
+            [self setContentHeight: self.editorView.frame.size.height];
             
         } completion:nil];
         
@@ -1171,27 +1185,45 @@ static Class hackishFixClass = Nil;
         
 		[UIView animateWithDuration:duration delay:0 options:animationOptions animations:^{
             
-            CGRect frame = self.toolbarHolder.frame;
-            frame.origin.y = self.view.frame.size.height + keyboardHeight;
-            self.toolbarHolder.frame = frame;
+            CGPoint toolbarCenter = CGPointMake(rootView.bounds.size.width/2.0f, rootView.bounds.size.height + 22);
+            self.toolbarHolder.transform = rootView.transform;
+            self.toolbarHolder.bounds = CGRectMake(0, 0, rootView.bounds.size.width, 44);
+            self.toolbarHolder.center = [window convertPoint:toolbarCenter fromView:rootView];
             
             // Editor View
             CGRect editorFrame = self.editorView.frame;
             editorFrame.size.height = self.view.frame.size.height;
             self.editorView.frame = editorFrame;
-            self.editorViewFrame = self.editorView.frame;
             self.editorView.scrollView.contentInset = UIEdgeInsetsZero;
             self.editorView.scrollView.scrollIndicatorInsets = UIEdgeInsetsZero;
             
             // Source View
-            CGRect sourceFrame = self.sourceView.frame;
-            sourceFrame.size.height = self.view.frame.size.height;
-            self.sourceView.frame = sourceFrame;
+            self.sourceView.frame = self.editorView.frame;
+            
+            // Provide editor with keyboard height and editor view height
+            [self setFooterHeight:(keyboardFrame.size.height - 8)];
+            [self setContentHeight: self.editorView.frame.size.height];
             
         } completion:nil];
         
 	}//end
     
+}
+
+
+- (void)keyboardDidShow:(NSNotification *)notification {
+    
+    // Editor View
+    const int extraHeight = 10;
+    CGPoint toolbarOrigin = [self.toolbarHolder convertPoint:self.toolbarHolder.bounds.origin toView:self.editorView];
+    CGRect editorFrame = self.editorView.frame;
+    editorFrame.size.height = MIN(self.editorView.superview.bounds.size.height, toolbarOrigin.y) - extraHeight;
+    self.editorView.frame = editorFrame;
+    self.editorView.scrollView.contentInset = UIEdgeInsetsZero;
+    self.editorView.scrollView.scrollIndicatorInsets = UIEdgeInsetsZero;
+    
+    // Source View
+    self.sourceView.frame = self.editorView.frame;
 }
 
 

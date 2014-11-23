@@ -21,8 +21,20 @@
     
     self.title = @"Standard";
     
+    NSMutableArray *rightBarButtonItems = [NSMutableArray array];
+    
+    // Done button
+    if (self.doneBlock)
+    {
+        UIBarButtonItem *doneButton = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemDone target:self action:@selector(done)];
+        [rightBarButtonItems addObject:doneButton];
+    }
+    
     // Export HTML
-    self.navigationItem.rightBarButtonItem = [[UIBarButtonItem alloc] initWithTitle:@"Export" style:UIBarButtonItemStylePlain target:self action:@selector(exportHTML)];
+    UIBarButtonItem *exportButton = [[UIBarButtonItem alloc] initWithTitle:@"Export" style:UIBarButtonItemStylePlain target:self action:@selector(exportHTML)];
+    [rightBarButtonItems addObject:exportButton];
+    
+    self.navigationItem.rightBarButtonItems = rightBarButtonItems;
 	
     // HTML Content to set in the editor
     NSString *html = @"<!-- This is an HTML comment -->"
@@ -68,6 +80,13 @@
     
     NSLog(@"%@", [self getHTML]);
     
+}
+
+
+- (void)done {
+    if (self.doneBlock) {
+        self.doneBlock();
+    }
 }
 
 
