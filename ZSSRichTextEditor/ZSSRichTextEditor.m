@@ -1311,12 +1311,13 @@ static Class hackishFixClass = Nil;
         return;
     }
     
-    // Add an horizontal offset to each button
-    for (UIView *button in toolbarButtons) {
-        CGRect frame = button.frame;
-        frame.origin.x += 16;
-        button.frame = frame;
-    }
+    // Add an horizontal offset
+    UIBarButtonItem *padding = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemFixedSpace target:nil action:nil];
+    padding.width = 16.0f;
+    
+    NSMutableArray *items = [NSMutableArray arrayWithObject:padding];
+    [items addObjectsFromArray:toolbar.items];
+    toolbar.items = items;
 }
 
 
