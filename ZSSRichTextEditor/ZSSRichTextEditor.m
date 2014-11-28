@@ -91,6 +91,7 @@ static Class hackishFixClass = Nil;
 @property (nonatomic, strong) NSString *selectedImageURL;
 @property (nonatomic, strong) NSString *selectedImageAlt;
 @property (nonatomic, strong) UIBarButtonItem *keyboardItem;
+@property (nonatomic, strong) UIToolbar *keyboardToolbar;
 @property (nonatomic, strong) NSMutableArray *customBarButtonItems;
 @property (nonatomic, strong) NSMutableArray *customZSSBarButtonItems;
 @property (nonatomic, strong) NSString *internalHTML;
@@ -177,16 +178,16 @@ static Class hackishFixClass = Nil;
     if (![self isIpad]) {
         
         // Toolbar holder used to crop and position toolbar
-        UIView *toolbarCropper = [[UIView alloc] initWithFrame:CGRectMake(self.view.frame.size.width-44, 0, 44, 44)];
+        UIView *toolbarCropper = [[UIView alloc] initWithFrame:CGRectMake(self.toolbarHolder.bounds.size.width-44, 0, 44, 44)];
         toolbarCropper.autoresizingMask = UIViewAutoresizingFlexibleLeftMargin;
         toolbarCropper.clipsToBounds = YES;
         
         // Use a toolbar so that we can tint
-        UIToolbar *keyboardToolbar = [[UIToolbar alloc] initWithFrame:CGRectMake(-7, -1, 44, 44)];
-        [toolbarCropper addSubview:keyboardToolbar];
+        self.keyboardToolbar = [[UIToolbar alloc] initWithFrame:CGRectMake(-7, -1, 44, 44)];
+        [toolbarCropper addSubview:self.keyboardToolbar];
         
         self.keyboardItem = [[UIBarButtonItem alloc] initWithImage:[UIImage imageNamed:@"ZSSkeyboard.png"] style:UIBarButtonItemStylePlain target:self action:@selector(dismissKeyboard)];
-        keyboardToolbar.items = @[self.keyboardItem];
+        self.keyboardToolbar.items = @[self.keyboardItem];
         [self.toolbarHolder addSubview:toolbarCropper];
         
         UIView *line = [[UIView alloc] initWithFrame:CGRectMake(0, 0, 0.6f, 44)];
@@ -557,6 +558,13 @@ static Class hackishFixClass = Nil;
     [self.toolbarHolder removeFromSuperview];
 }
 
+- (void)viewWillLayoutSubviews {
+    // Adding the toolbar as a subview of the key window (which is not recommended but necessary in this case) causes its buttons to start at x=0 in the toolbar's view, so we must offset them manually.
+    [self fixToolbarLayout:self.toolbar];
+    if (self.keyboardToolbar) {
+        [self fixToolbarLayout:self.keyboardToolbar];
+    }
+}
 
 - (void)didReceiveMemoryWarning
 {
@@ -1288,6 +1296,26 @@ static Class hackishFixClass = Nil;
         if (![item.label isEqualToString:@"source"]) {
             item.enabled = enable;
         }
+    }
+}
+
+
+- (void)fixToolbarLayout:(UIToolbar *)toolbar {
+    // Get all the toolbar's subviews that correspond to button items, assuming they are the ones with user interaction enabled
+    NSArray *toolbarButtons = [toolbar.subviews filteredArrayUsingPredicate:[NSPredicate predicateWithBlock:^BOOL(id evaluatedObject, NSDictionary *bindings) {
+        return ((UIView *)evaluatedObject).userInteractionEnabled;
+    }]];
+    
+    // The buttons may already be offset (such as on iOS 7), in which case we should leave them alone
+    if ([toolbarButtons[0] frame].origin.x > 0) {
+        return;
+    }
+    
+    // Add an horizontal offset to each button
+    for (UIView *button in toolbarButtons) {
+        CGRect frame = button.frame;
+        frame.origin.x += 16;
+        button.frame = frame;
     }
 }
 
