@@ -1001,6 +1001,9 @@ static Class hackishFixClass = Nil;
     // Highlight items
     NSArray *items = self.toolbar.items;
     for (ZSSBarButtonItem *item in items) {
+        if (![item respondsToSelector:@selector(label)]) {
+            continue;
+        }
         if ([itemNames containsObject:item.label]) {
             item.tintColor = [self barButtonItemSelectedDefaultColor];
         } else {
